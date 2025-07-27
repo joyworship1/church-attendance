@@ -92,6 +92,46 @@
             100% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.95); }
         }
 
+        .camera-controls {
+            text-align: center;
+        }
+
+        .camera-selection {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 15px;
+        }
+
+        .camera-btn {
+            background: white;
+            color: #495057;
+            border: 2px solid #e9ecef;
+            padding: 12px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            max-width: 140px;
+        }
+
+        .camera-btn:hover {
+            border-color: #4facfe;
+            transform: translateY(-1px);
+        }
+
+        .camera-btn.active {
+            background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border-color: #4facfe;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.3);
+        }
+
         .button {
             background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
             color: white;
@@ -261,8 +301,14 @@
                     카메라를 시작하려면 "QR 스캔 시작" 버튼을 눌러주세요
                 </div>
 
-                <button id="start-scan" class="button">📷 QR 스캔 시작</button>
-                <button id="stop-scan" class="button hidden">⏹️ 스캔 중지</button>
+                <div class="camera-controls">
+                    <div class="camera-selection">
+                        <button id="front-camera" class="camera-btn">📱 전면카메라</button>
+                        <button id="back-camera" class="camera-btn active">📷 후면카메라</button>
+                    </div>
+                    <button id="start-scan" class="button">📷 QR 스캔 시작</button>
+                    <button id="stop-scan" class="button hidden">⏹️ 스캔 중지</button>
+                </div>
             </div>
 
             <div id="attendance-section" class="attendance-info hidden">
@@ -345,6 +391,7 @@
                 this.scanner = null;
                 this.videoElement = document.getElementById('qr-video');
                 this.isScanning = false;
+                this.currentCamera = 'environment'; // 'user' = 전면, 'environment' = 후면
                 this.attendanceData = this.loadAttendanceData();
                 this.initializeElements();
                 this.bindEvents();
@@ -353,6 +400,8 @@
             initializeElements() {
                 this.startButton = document.getElementById('start-scan');
                 this.stopButton = document.getElementById('stop-scan');
+                this.frontCameraBtn = document.getElementById('front-camera');
+                this.backCameraBtn = document.getElementById('back-camera');
                 this.videoContainer = document.getElementById('video-container');
                 this.statusMessage = document.getElementById('status-message');
                 this.attendanceSection = document.getElementById('attendance-section');
@@ -362,6 +411,36 @@
             bindEvents() {
                 this.startButton.addEventListener('click', () => this.startScanning());
                 this.stopButton.addEventListener('click', () => this.stopScanning());
+                this.frontCameraBtn.addEventListener('click', () => this.selectCamera('user'));
+                this.backCameraBtn.addEventListener('click', () => this.selectCamera('environment'));
+            }
+
+            selectCamera(cameraType) {
+                this.currentCamera = cameraType;
+                
+                // 버튼 상태 업데이트
+                this.frontCameraBtn.classList.remove('active');
+                this.backCameraBtn.classList.remove('active');
+                
+                if (cameraType === 'user') {
+                    this.frontCameraBtn.classList.add('active');
+                    this.updateStatus('전면카메라가 선택되었습니다', 'info');
+                } else {
+                    this.backCameraBtn.classList.add('active');
+                    this.updateStatus('후면카메라가 선택되었습니다 (QR 스캔에 권장)', 'info');
+                }
+
+                // 현재 스캔 중이면 카메라 재시작
+                if (this.isScanning) {
+                    this.restartScanning();
+                }
+            }
+
+            async restartScanning() {
+                await this.stopScanning();
+                setTimeout(() => {
+                    this.startScanning();
+                }, 500);
             }
 
             loadAttendanceData() {
@@ -380,7 +459,7 @@
                     this.startButton.innerHTML = '<span class="loading"></span>카메라 시작 중...';
                     this.startButton.disabled = true;
 
-                    // QR Scanner 초기화
+                    // QR Scanner 초기화 - 선택된 카메라 사용
                     this.scanner = new QrScanner(
                         this.videoElement,
                         (result) => this.handleQRResult(result),
@@ -388,6 +467,7 @@
                             returnDetailedScanResult: true,
                             highlightScanRegion: true,
                             highlightCodeOutline: true,
+                            preferredCamera: this.currentCamera
                         }
                     );
 
@@ -397,11 +477,13 @@
                     this.videoContainer.classList.remove('hidden');
                     this.startButton.classList.add('hidden');
                     this.stopButton.classList.remove('hidden');
-                    this.updateStatus('QR 코드를 카메라에 비춰주세요', 'info');
+                    
+                    const cameraName = this.currentCamera === 'user' ? '전면카메라' : '후면카메라';
+                    this.updateStatus(`${cameraName}로 QR 코드를 스캔하세요`, 'info');
 
                 } catch (error) {
                     console.error('카메라 시작 실패:', error);
-                    this.updateStatus('카메라 접근에 실패했습니다. 권한을 확인해주세요.', 'error');
+                    this.updateStatus('카메라 접근에 실패했습니다. 다른 카메라를 선택해보세요.', 'error');
                     this.resetButtons();
                 }
             }
