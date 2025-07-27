@@ -1,2 +1,2 @@
 # church-attendance
-장성교회 청소년
+장성교회 청소년부
